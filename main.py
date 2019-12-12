@@ -20,8 +20,22 @@ class MyModel(keras.Model):
         x = self.d1(x)
         return self.d2(x)
 
+class RefModel(keras.Model):
+    def __init__(self):
+        super(RefModel, self).__init__()
+        self.conv1 = layers.Conv2D(32, 3, activation='relu')
+        self.flatten = layers.Flatten()
+        self.d1 = layers.Dense(128, activation='relu')
+        self.d2 = layers.Dense(10, activation='softmax')
+
+    def call(self, x):
+        x = self.conv1(x)
+        x = self.flatten(x)
+        x = self.d1(x)
+        return self.d2(x)
+
 @tf.function
-def train_step(images, labels):
+def train_step(model, images, labels, loss_object, optimizer, train_loss, train_accuracy):
     with tf.GradientTape() as tape:
         predictions = model(images)
         loss = loss_object(labels, predictions)
@@ -33,7 +47,7 @@ def train_step(images, labels):
     train_accuracy(labels, predictions)
 
 @tf.function
-def test_step(images, labels):
+def test_step(model, images, labels, loss_object, test_loss, test_accuracy):
     predictions = model(images)
     t_loss = loss_object(labels, predictions)
 
@@ -41,10 +55,6 @@ def test_step(images, labels):
     test_accuracy(labels, predictions)
 
 def main():
-    model = MyModel()
-
-    return
-
     mnist = tf.keras.datasets.mnist
 
     (x_train, y_train), (x_test, y_test) = mnist.load_data()
@@ -54,13 +64,15 @@ def main():
     x_train = x_train[..., tf.newaxis]
     x_test = x_test[..., tf.newaxis]
 
+    ds_size = int(len(y_train) / 32)
+
     train_ds = tf.data.Dataset.from_tensor_slices(
-    (x_train, y_train)).shuffle(10000).batch(32)
+        (x_train, y_train)).shuffle(10000).batch(32)
 
     test_ds = tf.data.Dataset.from_tensor_slices((x_test, y_test)).batch(32)
 
     # Create an instance of the model
-    model = MyModel()
+    model = RefModel()
 
     loss_object = tf.keras.losses.SparseCategoricalCrossentropy()
 
@@ -75,18 +87,23 @@ def main():
     EPOCHS = 5
 
     for epoch in range(EPOCHS):
+        train_step_count = 0
         for images, labels in train_ds:
-            train_step(images, labels)
+            train_step(model, images, labels, loss_object, optimizer, train_loss, train_accuracy)
+            train_step_count += 1
+            print('Train step {}/{}'.format(train_step_count, ds_size), end='\r')
+            if train_step_count >= 10:
+                break
 
         for test_images, test_labels in test_ds:
-            test_step(test_images, test_labels)
+            test_step(model, test_images, test_labels, loss_object, test_loss, test_accuracy)
 
-        template = 'Epoch {}, Loss: {}, Accuracy: {}, Test Loss: {}, Test Accuracy: {}'
+        template = '[Epoch {}] Loss: {:.3f}, Accuracy: {:.2%}, Test Loss: {:.3f}, Test Accuracy: {:.2%}'
         print(template.format(epoch+1,
                                 train_loss.result(),
-                                train_accuracy.result()*100,
+                                train_accuracy.result(),
                                 test_loss.result(),
-                                test_accuracy.result()*100))
+                                test_accuracy.result()))
 
         # Reset the metrics for the next epoch
         train_loss.reset_states()
