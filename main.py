@@ -28,6 +28,7 @@ def getMnistDatasets(batch_size=32):
     test_ds = tf.data.Dataset.from_tensor_slices((x_test, y_test)).batch(batch_size)
     return train_ds, test_ds
 
+# TODO: Uncomment this, only for debuging
 # @tf.function
 def trainStep(model, images, labels, loss_object, optimizer, train_loss, train_accuracy):
     with tf.GradientTape() as tape:
@@ -40,6 +41,7 @@ def trainStep(model, images, labels, loss_object, optimizer, train_loss, train_a
     train_loss(loss)
     train_accuracy(labels, predictions)
 
+# TODO: Uncomment this, only for debuging
 # @tf.function
 def testStep(model, images, labels, loss_object, test_loss, test_accuracy):
     predictions = model(images)
